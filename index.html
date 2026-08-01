@@ -1,245 +1,308 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Studio-Grade Oberton-Isolator</title>
-    <style>
-        :root {
-            --bg: #121214;
-            --panel: #1e1e24;
-            --accent: #00e5ff;
-            --text: #e1e1e6;
-        }
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-        }
-        .container {
-            background: var(--panel);
-            padding: 2rem;
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            width: 420px;
-        }
-        h2 { margin-top: 0; color: var(--accent); text-align: center; }
-        .control-group { margin: 1.5rem 0; }
-        label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; }
-        input[type="range"] { width: 100%; accent-color: var(--accent); }
-        .val-display { float: right; font-weight: bold; color: var(--accent); }
-        button {
-            width: 100%;
-            padding: 1rem;
-            border: none;
-            border-radius: 8px;
-            background: var(--accent);
-            color: #000;
-            font-weight: bold;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: opacity 0.2s;
-            margin-top: 0.5rem;
-        }
-        button:disabled { opacity: 0.4; cursor: not-allowed; }
-        canvas { width: 100%; height: 120px; background: #000; border-radius: 8px; margin-top: 1rem; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Klavier Schwebungs-Isolator</title>
+  <style>
+    :root {
+      --bg-color: #121214;
+      --card-bg: #1e1e24;
+      --accent: #00d26a;
+      --accent-disabled: #3a5043;
+      --text: #ececec;
+      --subtext: #a0a0ab;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-color);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+      margin: 0;
+    }
+
+    .app-container {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      margin-top: 0;
+      color: var(--accent);
+      text-align: center;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 0.95rem;
+      cursor: pointer;
+      background: var(--accent);
+      color: #000;
+      transition: all 0.2s ease;
+    }
+
+    button:disabled {
+      background: var(--accent-disabled);
+      color: #666;
+      cursor: not-allowed;
+    }
+
+    button.recording {
+      background: #ff4757;
+      color: #fff;
+    }
+
+    .inputs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .input-group label {
+      font-size: 0.85rem;
+      color: var(--subtext);
+    }
+
+    .input-group input[type=number], select {
+      background: #121214;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #fff;
+      padding: 10px;
+      font-size: 1rem;
+      font-weight: bold;
+    }
+
+    .input-group input[type=number]:focus, select:focus {
+      outline: 1px solid var(--accent);
+    }
+
+    .slope-group {
+      margin-bottom: 20px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 180px;
+      background: #000;
+      border-radius: 8px;
+      margin-top: 10px;
+      display: block;
+    }
+
+    .status {
+      font-size: 0.85rem;
+      color: var(--subtext);
+      text-align: center;
+      margin-top: 8px;
+    }
+  </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Präzisions-Isolator</h2>
-    
-    <div class="control-group">
-        <label>Zentralfrequenz: <span id="freqVal" class="val-display">440 Hz</span></label>
-        <input type="range" id="freqSlider" min="50" max="4000" value="440">
+<div class="app-container">
+  <h1>Klavier Bandpass-Filter</h1>
+
+  <div class="controls">
+    <button id="recordBtn">🎤 Aufnahme starten</button>
+    <button id="playBtn" disabled>▶ Gefiltert abspielen</button>
+  </div>
+
+  <!-- Frequenzfenster -->
+  <div class="inputs-grid">
+    <div class="input-group">
+      <label for="minFreq">Min. Frequenz (Hz):</label>
+      <input type="number" id="minFreq" value="430" min="20" max="8000" step="1">
     </div>
-
-    <div class="control-group">
-        <label>Bandbreite (Güte/Q): <span id="qVal" class="val-display">Ultra-Scharf (Q=30)</span></label>
-        <input type="range" id="qSlider" min="1" max="50" value="30">
+    <div class="input-group">
+      <label for="maxFreq">Max. Frequenz (Hz):</label>
+      <input type="number" id="maxFreq" value="450" min="20" max="8000" step="1">
     </div>
+  </div>
 
-    <button id="recBtn">🔴 3 Sek. High-Res Aufnahme</button>
-    <button id="playBtn" disabled>▶ Gefiltert Abspielen</button>
+  <!-- Flankensteilheit (Filter-Stärke) -->
+  <div class="input-group slope-group">
+    <label for="steepnessSelect">Filter-Steilheit (Abschneid-Stärke):</label>
+    <select id="steepnessSelect">
+      <option value="1">12 dB/Okt (Weich - breiter Übergang)</option>
+      <option value="2">24 dB/Okt (Mittel - ausgewogen)</option>
+      <option value="3">36 dB/Okt (Stark - gute Isolation)</option>
+      <option value="4" selected>48 dB/Okt (Rigoros - maximale Isolation)</option>
+    </select>
+  </div>
 
-    <canvas id="scope"></canvas>
+  <canvas id="visualizer"></canvas>
+  <div class="status" id="statusText">Bereit für Aufnahme.</div>
 </div>
 
 <script>
-let audioCtx = null;
-let rawBuffer = null;
-let filteredBuffer = null;
+  let mediaRecorder;
+  let audioChunks = [];
+  let audioBlob;
+  let audioCtx;
+  let audioBuffer;
+  let currentSource = null;
+  let analyserNode;
+  let animId;
 
-const recBtn = document.getElementById('recBtn');
-const playBtn = document.getElementById('playBtn');
-const freqSlider = document.getElementById('freqSlider');
-const qSlider = document.getElementById('qSlider');
-const canvas = document.getElementById('scope');
-const ctx = canvas.getContext('2d');
+  const recordBtn = document.getElementById('recordBtn');
+  const playBtn = document.getElementById('playBtn');
+  const minFreqInput = document.getElementById('minFreq');
+  const maxFreqInput = document.getElementById('maxFreq');
+  const steepnessSelect = document.getElementById('steepnessSelect');
+  const statusText = document.getElementById('statusText');
+  const canvas = document.getElementById('visualizer');
+  const canvasCtx = canvas.getContext('2d');
 
-freqSlider.oninput = () => document.getElementById('freqVal').textContent = `${freqSlider.value} Hz`;
-qSlider.oninput = () => document.getElementById('qVal').textContent = `Q = ${qSlider.value}`;
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
 
-// --- FFT-BASIERTE SPEKTRAL-FILTERUNG (Zero-Phase Studio-Qualität) ---
-function filterBufferSpectral(buffer, targetFreq, qFactor) {
-    const sampleRate = buffer.sampleRate;
-    const inputData = buffer.getChannelData(0);
-    const fftSize = 16384; // Gleiche Präzision wie im Obertonanalysator
-    const outputData = new Float32Array(inputData.length);
-    
-    // Berechne Passband-Grenzen
-    const bandwidth = targetFreq / qFactor;
-    const minFreq = Math.max(0, targetFreq - bandwidth / 2);
-    const maxFreq = targetFreq + bandwidth / 2;
-
-    const binSize = sampleRate / fftSize;
-    const minBin = Math.floor(minFreq / binSize);
-    const maxBin = Math.ceil(maxFreq / binSize);
-
-    // Overlap-Add Verarbeitung für 100% phasenlineare Isolation
-    const hopSize = fftSize / 4;
-    const window = new Float32Array(fftSize);
-    
-    // Blackman-Harris Fenster zur Vermeidung von Spektralleckage & Artefakten
-    for (let i = 0; i < fftSize; i++) {
-        const a0 = 0.35875, a1 = 0.48829, a2 = 0.14128, a3 = 0.01168;
-        window[i] = a0 - a1 * Math.cos((2 * Math.PI * i) / (fftSize - 1))
-                       + a2 * Math.cos((4 * Math.PI * i) / (fftSize - 1))
-                       - a3 * Math.cos((6 * Math.PI * i) / (fftSize - 1));
-    }
-
-    // FFT & IFFT via Web Audio API Offline-Kontext für maximale Performance
-    const offlineCtx = new OfflineAudioContext(1, inputData.length, sampleRate);
-    const src = offlineCtx.createBufferSource();
-    src.buffer = buffer;
-
-    // Erstelle ein extrem steiles, phasenkompensiertes IIR-Kaskadenfilter (8-fach)
-    let lastNode = src;
-    for (let i = 0; i < 4; i++) {
-        const bandpass = offlineCtx.createBiquadFilter();
-        bandpass.type = "bandpass";
-        bandpass.frequency.value = targetFreq;
-        bandpass.Q.value = qFactor / 2; // Sanfte Steigung pro Stufe für sauberen Klang
-        lastNode.connect(bandpass);
-        lastNode = bandpass;
-    }
-
-    lastNode.connect(offlineCtx.destination);
-    src.start();
-
-    return offlineCtx.startRendering();
-}
-
-// --- AUFNAHME MIT MAXIMALER SAMPLERATE ---
-recBtn.onclick = async () => {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
-    
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            audio: { 
-                echoCancellation: false,  // Abschalten für reine Musik-/Flügelakustik
-                noiseSuppression: false,  // Keine Komprimierung von Obertönen
-                autoGainControl: false    // Verhindert Dynamikverzerrung
-            } 
-        });
-
-        const mediaRecorder = new MediaRecorder(stream);
-        const chunks = [];
-
-        recBtn.disabled = true;
-        recBtn.textContent = "🎙️ Nimmt auf...";
-
-        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+  // Aufnahme Steuerung
+  recordBtn.addEventListener('click', async () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      mediaRecorder.stop();
+      recordBtn.textContent = "🎤 Aufnahme starten";
+      recordBtn.classList.remove('recording');
+      statusText.textContent = "Verarbeite Aufnahme...";
+    } else {
+      audioChunks = [];
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
         mediaRecorder.onstop = async () => {
-            const blob = new Blob(chunks, { type: 'audio/wav' });
-            const arrayBuffer = await blob.arrayBuffer();
-            rawBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-            
-            recBtn.disabled = false;
-            recBtn.textContent = "🔴 3 Sek. High-Res Aufnahme";
-            playBtn.disabled = false;
-            
-            // Erstes Mal filtern
-            processAndDraw();
+          audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          const arrayBuffer = await audioBlob.arrayBuffer();
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          playBtn.disabled = false;
+          statusText.textContent = "Aufnahme bereit zum Abspielen.";
         };
 
         mediaRecorder.start();
-        setTimeout(() => mediaRecorder.stop(), 3000);
-
-    } catch (err) {
-        alert("Mikrofonzugriff verweigert oder nicht unterstützt.");
-        recBtn.disabled = false;
+        recordBtn.textContent = "⏹ Stopp (Aufnahme...)";
+        recordBtn.classList.add('recording');
+        statusText.textContent = "Nimm Klavierton auf...";
+      } catch (err) {
+        alert("Mikrofonzugriff verweigert oder nicht verfügbar.");
+        console.error(err);
+      }
     }
-};
+  });
 
-// --- PROZESSIERUNG & ODSZILLOSKOP ---
-async function processAndDraw() {
-    if (!rawBuffer) return;
-    
-    const freq = parseFloat(freqSlider.value);
-    const q = parseFloat(qSlider.value);
-    
-    filteredBuffer = await filterBufferSpectral(rawBuffer, freq, q);
-    drawWaveform(filteredBuffer.getChannelData(0));
-}
+  // Gefiltertes Abspielen
+  playBtn.addEventListener('click', () => {
+    if (!audioBuffer) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
 
-freqSlider.onchange = processAndDraw;
-qSlider.onchange = processAndDraw;
-
-// --- ABPIELEN MIT NORMALISIERUNG (Verhindert Übersteuerung) ---
-playBtn.onclick = () => {
-    if (!filteredBuffer || !audioCtx) return;
-
-    const source = audioCtx.createBufferSource();
-    source.buffer = filteredBuffer;
-
-    // Soft-Gain Control zur Lautstärkeanpassung des isolierten Teiltons
-    const gainNode = audioCtx.createGain();
-    
-    // RMS Peak-Normalisierung
-    const data = filteredBuffer.getChannelData(0);
-    let maxAmp = 0;
-    for (let i = 0; i < data.length; i++) {
-        const abs = Math.abs(data[i]);
-        if (abs > maxAmp) maxAmp = abs;
+    if (currentSource) {
+      currentSource.stop();
     }
-    
-    // Signal auf ca. -3dB anheben, falls es durch die Filterung sehr leise wurde
-    gainNode.gain.value = maxAmp > 0 ? (0.7 / maxAmp) : 1.0;
 
-    source.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    source.start();
-};
+    const minFreq = parseFloat(minFreqInput.value);
+    const maxFreq = parseFloat(maxFreqInput.value);
+    const cascades = parseInt(steepnessSelect.value); // 1 bis 4 Kaskaden
 
-function drawWaveform(data) {
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#00e5ff';
-    ctx.beginPath();
-
-    const step = Math.ceil(data.length / canvas.width);
-    const amp = canvas.height / 2;
-
-    for (let i = 0; i < canvas.width; i++) {
-        let min = 1.0, max = -1.0;
-        for (let j = 0; j < step; j++) {
-            const val = data[(i * step) + j];
-            if (val < min) min = val;
-            if (val > max) max = val;
-        }
-        ctx.lineTo(i, (1 + min) * amp);
-        ctx.lineTo(i, (1 + max) * amp);
+    if (minFreq >= maxFreq) {
+      alert("Min. Frequenz muss kleiner sein als Max. Frequenz!");
+      return;
     }
-    ctx.stroke();
-}
+
+    currentSource = audioCtx.createBufferSource();
+    currentSource.buffer = audioBuffer;
+
+    let lastNode = currentSource;
+
+    // Dynamische Hochpass-Kaskade
+    for (let i = 0; i < cascades; i++) {
+      const hp = audioCtx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.setValueAtTime(minFreq, audioCtx.currentTime);
+      lastNode.connect(hp);
+      lastNode = hp;
+    }
+
+    // Dynamische Tiefpass-Kaskade
+    for (let i = 0; i < cascades; i++) {
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(maxFreq, audioCtx.currentTime);
+      lastNode.connect(lp);
+      lastNode = lp;
+    }
+
+    // Analyser für Visualisierung
+    analyserNode = audioCtx.createAnalyser();
+    analyserNode.fftSize = 2048;
+
+    lastNode.connect(analyserNode);
+    analyserNode.connect(audioCtx.destination);
+
+    currentSource.start(0);
+    statusText.textContent = `Spiele Fenster [${minFreq}–${maxFreq} Hz] mit ${cascades * 12} dB/Okt Steilheit ab...`;
+
+    drawVisualizer();
+
+    currentSource.onended = () => {
+      statusText.textContent = "Wiedergabe beendet.";
+      cancelAnimationFrame(animId);
+    };
+  });
+
+  // Spektrometer
+  function drawVisualizer() {
+    const bufferLength = analyserNode.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    function renderFrame() {
+      animId = requestAnimationFrame(renderFrame);
+      analyserNode.getByteFrequencyData(dataArray);
+
+      canvasCtx.fillStyle = '#000000';
+      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const barWidth = (canvas.width / bufferLength) * 2.5;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        const barHeight = (dataArray[i] / 255) * canvas.height;
+
+        canvasCtx.fillStyle = `rgb(0, ${dataArray[i] + 100}, 106)`;
+        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+
+        x += barWidth + 1;
+      }
+    }
+
+    renderFrame();
+  }
 </script>
+
 </body>
 </html>
