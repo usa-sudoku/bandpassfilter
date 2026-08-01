@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Klavier Schwebungs-Isolator (Frequenzfenster)</title>
+  <title>Klavier Schwebungs-Isolator</title>
   <style>
     :root {
       --bg-color: #121214;
@@ -88,7 +88,7 @@
       color: var(--subtext);
     }
 
-    .input-group input[type=number] {
+    .input-group input[type=number], select {
       background: #121214;
       border: 1px solid #333;
       border-radius: 6px;
@@ -98,8 +98,12 @@
       font-weight: bold;
     }
 
-    .input-group input[type=number]:focus {
+    .input-group input[type=number]:focus, select:focus {
       outline: 1px solid var(--accent);
+    }
+
+    .slope-group {
+      margin-bottom: 20px;
     }
 
     canvas {
@@ -122,14 +126,14 @@
 <body>
 
 <div class="app-container">
-  <h1>Klavier Bandpass-Filter (Min/Max Fenster)</h1>
+  <h1>Klavier Bandpass-Filter</h1>
 
   <div class="controls">
     <button id="recordBtn">🎤 Aufnahme starten</button>
     <button id="playBtn" disabled>▶ Gefiltert abspielen</button>
   </div>
 
-  <!-- Frequenzfenster Eingabefelder -->
+  <!-- Frequenzfenster -->
   <div class="inputs-grid">
     <div class="input-group">
       <label for="minFreq">Min. Frequenz (Hz):</label>
@@ -139,6 +143,17 @@
       <label for="maxFreq">Max. Frequenz (Hz):</label>
       <input type="number" id="maxFreq" value="450" min="20" max="8000" step="1">
     </div>
+  </div>
+
+  <!-- Flankensteilheit (Filter-Stärke) -->
+  <div class="input-group slope-group">
+    <label for="steepnessSelect">Filter-Steilheit (Abschneid-Stärke):</label>
+    <select id="steepnessSelect">
+      <option value="1">12 dB/Okt (Weich - breiter Übergang)</option>
+      <option value="2">24 dB/Okt (Mittel - ausgewogen)</option>
+      <option value="3">36 dB/Okt (Stark - gute Isolation)</option>
+      <option value="4" selected>48 dB/Okt (Rigoros - maximale Isolation)</option>
+    </select>
   </div>
 
   <canvas id="visualizer"></canvas>
@@ -152,8 +167,6 @@
   let audioCtx;
   let audioBuffer;
   let currentSource = null;
-  let highpassNode;
-  let lowpassNode;
   let analyserNode;
   let animId;
 
@@ -161,25 +174,13 @@
   const playBtn = document.getElementById('playBtn');
   const minFreqInput = document.getElementById('minFreq');
   const maxFreqInput = document.getElementById('maxFreq');
+  const steepnessSelect = document.getElementById('steepnessSelect');
   const statusText = document.getElementById('statusText');
   const canvas = document.getElementById('visualizer');
   const canvasCtx = canvas.getContext('2d');
 
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
-
-  // Live-Update der Filterfrequenzen, falls während des Abspielens geändert wird
-  minFreqInput.addEventListener('input', () => {
-    if (highpassNode && audioCtx) {
-      highpassNode.frequency.setValueAtTime(parseFloat(minFreqInput.value), audioCtx.currentTime);
-    }
-  });
-
-  maxFreqInput.addEventListener('input', () => {
-    if (lowpassNode && audioCtx) {
-      lowpassNode.frequency.setValueAtTime(parseFloat(maxFreqInput.value), audioCtx.currentTime);
-    }
-  });
 
   // Aufnahme Steuerung
   recordBtn.addEventListener('click', async () => {
@@ -226,6 +227,7 @@
 
     const minFreq = parseFloat(minFreqInput.value);
     const maxFreq = parseFloat(maxFreqInput.value);
+    const cascades = parseInt(steepnessSelect.value); // 1 bis 4 Kaskaden
 
     if (minFreq >= maxFreq) {
       alert("Min. Frequenz muss kleiner sein als Max. Frequenz!");
@@ -235,28 +237,35 @@
     currentSource = audioCtx.createBufferSource();
     currentSource.buffer = audioBuffer;
 
-    // Filter 1: Hochpass (blockt alles unter Min-Freq)
-    highpassNode = audioCtx.createBiquadFilter();
-    highpassNode.type = 'highpass';
-    highpassNode.frequency.setValueAtTime(minFreq, audioCtx.currentTime);
+    let lastNode = currentSource;
 
-    // Filter 2: Tiefpass (blockt alles über Max-Freq)
-    lowpassNode = audioCtx.createBiquadFilter();
-    lowpassNode.type = 'lowpass';
-    lowpassNode.frequency.setValueAtTime(maxFreq, audioCtx.currentTime);
+    // Dynamische Hochpass-Kaskade
+    for (let i = 0; i < cascades; i++) {
+      const hp = audioCtx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.setValueAtTime(minFreq, audioCtx.currentTime);
+      lastNode.connect(hp);
+      lastNode = hp;
+    }
+
+    // Dynamische Tiefpass-Kaskade
+    for (let i = 0; i < cascades; i++) {
+      const lp = audioCtx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(maxFreq, audioCtx.currentTime);
+      lastNode.connect(lp);
+      lastNode = lp;
+    }
 
     // Analyser für Visualisierung
     analyserNode = audioCtx.createAnalyser();
     analyserNode.fftSize = 2048;
 
-    // Signalkette: Source -> Highpass -> Lowpass -> Analyser -> Output
-    currentSource.connect(highpassNode);
-    highpassNode.connect(lowpassNode);
-    lowpassNode.connect(analyserNode);
+    lastNode.connect(analyserNode);
     analyserNode.connect(audioCtx.destination);
 
     currentSource.start(0);
-    statusText.textContent = `Spiele Fensterbereich [${minFreq} Hz - ${maxFreq} Hz] ab...`;
+    statusText.textContent = `Spiele Fenster [${minFreq}–${maxFreq} Hz] mit ${cascades * 12} dB/Okt Steilheit ab...`;
 
     drawVisualizer();
 
