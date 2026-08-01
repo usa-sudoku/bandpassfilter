@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Klavier Schwebungs-Isolator</title>
+  <title>Klavier Schwebungs-Isolator HD</title>
   <style>
     :root {
       --bg-color: #121214;
@@ -126,7 +126,7 @@
 <body>
 
 <div class="app-container">
-  <h1>Klavier Bandpass-Filter</h1>
+  <h1>Klavier Bandpass-Filter (HD Studio)</h1>
 
   <div class="controls">
     <button id="recordBtn">🎤 Aufnahme starten</button>
@@ -182,27 +182,58 @@
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
 
-  // Aufnahme Steuerung
+  // Aufnahme Steuerung mit Unprocessed HD Hardware-Audio
   recordBtn.addEventListener('click', async () => {
     if (mediaRecorder && mediaRecorder.state === "recording") {
       mediaRecorder.stop();
       recordBtn.textContent = "🎤 Aufnahme starten";
       recordBtn.classList.remove('recording');
-      statusText.textContent = "Verarbeite Aufnahme...";
+      statusText.textContent = "Verarbeite HD-Aufnahme...";
     } else {
       audioChunks = [];
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        // High-End Mikrofonkonfiguration: Alle Filter deaktivieren für rohes Signal
+        const audioConstraints = {
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 48000
+          }
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+        
+        let mimeType = 'audio/webm;codecs=opus';
+        if (MediaRecorder.isTypeSupported('audio/wav')) {
+          mimeType = 'audio/wav';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+          mimeType = 'audio/webm';
+        }
+
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: mimeType,
+          audioBitsPerSecond: 256000
+        });
         
         mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
         mediaRecorder.onstop = async () => {
-          audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+          audioBlob = new Blob(audioChunks, { type: mimeType });
           const arrayBuffer = await audioBlob.arrayBuffer();
-          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          
+          if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+          }
+          if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+          }
+
           audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
           playBtn.disabled = false;
           statusText.textContent = "Aufnahme bereit zum Abspielen.";
+
+          stream.getTracks().forEach(track => track.stop());
         };
 
         mediaRecorder.start();
@@ -210,24 +241,24 @@
         recordBtn.classList.add('recording');
         statusText.textContent = "Nimm Klavierton auf...";
       } catch (err) {
-        alert("Mikrofonzugriff verweigert oder nicht verfügbar.");
+        alert("Mikrofonzugriff verweigert oder Konfiguration nicht unterstützt.");
         console.error(err);
       }
     }
   });
 
-  // Gefiltertes Abspielen
+  // Gefiltertes Abspielen ohne Pegeländerung
   playBtn.addEventListener('click', () => {
     if (!audioBuffer) return;
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
     if (currentSource) {
-      currentSource.stop();
+      try { currentSource.stop(); } catch(e){}
     }
 
     const minFreq = parseFloat(minFreqInput.value);
     const maxFreq = parseFloat(maxFreqInput.value);
-    const cascades = parseInt(steepnessSelect.value); // 1 bis 4 Kaskaden
+    const cascades = parseInt(steepnessSelect.value);
 
     if (minFreq >= maxFreq) {
       alert("Min. Frequenz muss kleiner sein als Max. Frequenz!");
@@ -239,7 +270,7 @@
 
     let lastNode = currentSource;
 
-    // Dynamische Hochpass-Kaskade
+    // Hochpass-Kaskade
     for (let i = 0; i < cascades; i++) {
       const hp = audioCtx.createBiquadFilter();
       hp.type = 'highpass';
@@ -248,7 +279,7 @@
       lastNode = hp;
     }
 
-    // Dynamische Tiefpass-Kaskade
+    // Tiefpass-Kaskade
     for (let i = 0; i < cascades; i++) {
       const lp = audioCtx.createBiquadFilter();
       lp.type = 'lowpass';
@@ -293,7 +324,7 @@
       for (let i = 0; i < bufferLength; i++) {
         const barHeight = (dataArray[i] / 255) * canvas.height;
 
-        canvasCtx.fillStyle = `rgb(0, ${dataArray[i] + 100}, 106)`;
+        canvasCtx.fillStyle = `rgb(0, ${Math.min(255, dataArray[i] + 100)}, 106)`;
         canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
 
         x += barWidth + 1;
